@@ -38,6 +38,10 @@ import { FalService } from '@gitroom/nestjs-libraries/openai/fal.service';
 import { RefreshIntegrationService } from '@gitroom/nestjs-libraries/integrations/refresh.integration.service';
 import { OAuthRepository } from '@gitroom/nestjs-libraries/database/prisma/oauth/oauth.repository';
 import { OAuthService } from '@gitroom/nestjs-libraries/database/prisma/oauth/oauth.service';
+import { AnnouncementsRepository } from '@gitroom/nestjs-libraries/database/prisma/announcements/announcements.repository';
+import { AnnouncementsService } from '@gitroom/nestjs-libraries/database/prisma/announcements/announcements.service';
+import { ErrorsRepository } from '@gitroom/nestjs-libraries/database/prisma/errors/errors.repository';
+import { ErrorsService } from '@gitroom/nestjs-libraries/database/prisma/errors/errors.service';
 
 @Global()
 @Module({
@@ -85,6 +89,10 @@ import { OAuthService } from '@gitroom/nestjs-libraries/database/prisma/oauth/oa
     OAuthRepository,
     OAuthService,
     VideoManager,
+    AnnouncementsRepository,
+    AnnouncementsService,
+    ErrorsRepository,
+    ErrorsService,
   ],
   get exports() {
     return this.providers;
