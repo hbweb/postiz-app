@@ -1,8 +1,8 @@
 'use client';
 
-import { FC, forwardRef, useCallback, useState } from 'react';
+import { FC, forwardRef, useCallback } from 'react';
 import clsx from 'clsx';
-import { useFormContext, useWatch } from 'react-hook-form';
+import { useFormContext } from 'react-hook-form';
 export const Checkbox = forwardRef<
   null,
   {
@@ -47,7 +47,6 @@ export const Checkbox = forwardRef<
     <div className="flex gap-[10px]">
       <div
         ref={ref}
-        {...disableForm ? {} : form.register(props.name!)}
         onClick={changeStatus}
         className={clsx(
           'cursor-pointer rounded-[4px] select-none w-[24px] h-[24px] justify-center items-center flex text-white',
