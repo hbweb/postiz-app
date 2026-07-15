@@ -141,9 +141,7 @@ const TikTokSettings: FC<{
       </div>
       <Select
         label={t('label_content_posting_method', 'Content posting method')}
-        {...register('content_posting_method', {
-          value: 'DIRECT_POST',
-        })}
+        {...register('content_posting_method')}
       >
         <option value="">{t('select', 'Select')}</option>
         {contentPostingMethod.map((item) => (
@@ -155,9 +153,7 @@ const TikTokSettings: FC<{
       {isUploadMode && <div className="-mt-[23px] mb-[23px] text-red-600">After posting you fill find a notification inside your Inbox about your post (not content studio)</div>}
       <Select
         label={t('label_auto_add_music', 'Auto add music')}
-        {...register('autoAddMusic', {
-          value: 'no',
-        })}
+        {...register('autoAddMusic')}
       >
         <option value="">{t('select', 'Select')}</option>
         {yesNo.map((item) => (
