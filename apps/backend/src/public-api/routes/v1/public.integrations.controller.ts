@@ -12,7 +12,10 @@ import {
   UseInterceptors,
   UsePipes,
 } from '@nestjs/common';
-import { CustomFileValidationPipe } from '@gitroom/nestjs-libraries/upload/custom.upload.validation';
+import {
+  CustomFileValidationPipe,
+  getMaxSize,
+} from '@gitroom/nestjs-libraries/upload/custom.upload.validation';
 import { ApiTags } from '@nestjs/swagger';
 import { GetOrgFromRequest } from '@gitroom/nestjs-libraries/user/org.from.request';
 import { Organization } from '@prisma/client';
@@ -24,6 +27,7 @@ import { UploadFactory } from '@gitroom/nestjs-libraries/upload/upload.factory';
 import { MediaService } from '@gitroom/nestjs-libraries/database/prisma/media/media.service';
 import { GetPostsDto } from '@gitroom/nestjs-libraries/dtos/posts/get.posts.dto';
 import { ChangePostStatusDto } from '@gitroom/nestjs-libraries/dtos/posts/change.post.status.dto';
+import { UpdatePostSettingsDto } from '@gitroom/nestjs-libraries/dtos/posts/update.post.settings.dto';
 import {
   AuthorizationActions,
   Sections,
@@ -100,18 +104,41 @@ export class PublicIntegrationsController {
     @Body() body: UploadDto
   ) {
     Sentry.metrics.count('public_api-request', 1);
-    const response = await fetch(body.url, {
-      // @ts-ignore — undici option, not in lib.dom fetch types
-      dispatcher: ssrfSafeDispatcher,
-    });
+    let response: globalThis.Response;
+    try {
+      response = await fetch(body.url, {
+        // @ts-ignore — undici option, not in lib.dom fetch types
+        dispatcher: ssrfSafeDispatcher,
+      });
+    } catch {
+      // Network-level failure (DNS, connection refused, SSRF block, etc.) —
+      // fetch rejects rather than returning a non-ok response.
+      throw new HttpException({ msg: 'Failed to fetch URL' }, 400);
+    }
     if (!response.ok) {
       throw new HttpException({ msg: 'Failed to fetch URL' }, 400);
     }
+
+    // Guard against OOM: bail out before buffering the whole body into memory.
+    // Content-Length may be absent or wrong, so we re-check the real size after
+    // download too. The type isn't known yet (sniffed below), so the pre-check
+    // uses the largest allowed cap (video).
+    const maxDownloadSize = getMaxSize('video/mp4');
+    const declaredSize = Number(response.headers.get('content-length'));
+    if (declaredSize && declaredSize > maxDownloadSize) {
+      throw new HttpException({ msg: 'File is too large.' }, 400);
+    }
+
     const buffer = Buffer.from(await response.arrayBuffer());
     const detected = await fromBuffer(buffer);
     if (!detected || !PUBLIC_API_ALLOWED_MIME.has(detected.mime)) {
       throw new HttpException({ msg: 'Unsupported file type.' }, 400);
     }
+
+    if (buffer.length > getMaxSize(detected.mime)) {
+      throw new HttpException({ msg: 'File is too large.' }, 400);
+    }
+
     const mimetype = detected.mime;
     const ext = detected.ext;
 
@@ -313,8 +340,16 @@ export class PublicIntegrationsController {
       throw new HttpException({ msg: 'Integration not allowed' }, 400);
     }
 
-    const integrationProvider =
-      this._integrationManager.getSocialIntegration(integration);
+    // A provider migrated via MIGRATE_PROVIDERS reconnects through its target
+    // provider's OAuth: the callback lands on the target and the channel is
+    // migrated in place (see migrateIntegration).
+    const migrateTo = refresh
+      ? this._integrationManager.getMigrationTarget(integration)
+      : undefined;
+
+    const integrationProvider = this._integrationManager.getSocialIntegration(
+      migrateTo || integration
+    );
 
     if (integrationProvider.externalUrl) {
       throw new HttpException(
@@ -446,6 +481,21 @@ export class PublicIntegrationsController {
   ) {
     Sentry.metrics.count('public_api-request', 1);
     return this._postsService.getMissingContent(org.id, id);
+  }
+
+  @Put('/posts/:id/settings')
+  async updatePostSettings(
+    @GetOrgFromRequest() org: Organization,
+    @Param('id') id: string,
+    @Body() body: UpdatePostSettingsDto
+  ) {
+    Sentry.metrics.count('public_api-request', 1);
+    return this._postsService.updatePostSettings(
+      org.id,
+      id,
+      body.settings,
+      'API'
+    );
   }
 
   @Put('/posts/:id/status')
